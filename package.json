@@ -1,6 +1,6 @@
 {
   "name": "meta-programming-in-js",
-  "module": "index.ts",
+  "module": "src/index.ts",
   "type": "module",
   "private": true,
   "devDependencies": {
@@ -10,3 +10,4 @@
     "typescript": "^5"
   }
 }
+
