@@ -2,15 +2,18 @@ type SchemaField<T> =
   | {
       type: "string";
       isNullable: boolean;
+      isOptional: boolean;
     }
   | {
       type: "number";
       isNullable: boolean;
+      isOptional: boolean;
     }
   | {
       type: "object";
       fields: T;
       isNullable: boolean;
+      isOptional: boolean;
     };
 
 type SchemaType = "object";
@@ -18,12 +21,17 @@ type Schema<T> = {
   type: SchemaType;
   fields: T;
   isNullable: boolean;
+  isOptional: boolean;
 };
 
 const object = <T extends Record<string, SchemaField<any>>>(fields: T) => {
   return {
     type: "object",
     fields,
+    isOptional: false,
+    optional() {
+      return { ...this, isOptional: true } as const;
+    },
     isNullable: false,
     nullable() {
       return { ...this, isNullable: true } as const;
@@ -38,6 +46,10 @@ const string = () => {
     nullable() {
       return { ...this, isNullable: true } as const;
     },
+    isOptional: false,
+    optional() {
+      return { ...this, isOptional: true } as const;
+    },
   } as const;
 };
 
@@ -48,6 +60,10 @@ const number = () => {
     nullable() {
       return { ...this, isNullable: true } as const;
     },
+    isOptional: false,
+    optional() {
+      return { ...this, isOptional: true } as const;
+    },
   } as const;
 };
 
@@ -57,40 +73,56 @@ type Nullability<T extends SchemaField<any>> = T extends {
   ? null
   : never;
 
+type Optionality<T extends SchemaField<any>> = T extends {
+  isOptional: true;
+}
+  ? undefined
+  : never;
+
+type RequiredFields<T extends object> = {
+  [k in keyof T]: undefined extends T[k] ? never : k;
+}[keyof T];
+type OptionalFields<T extends object> = {
+  [k in keyof T]: undefined extends T[k] ? k : never;
+}[keyof T];
+
+type Ident<T> = T;
+type Flatten<T extends object> = Ident<{ [k in keyof T]: T[k] }>;
+
+type AddOptionalFields<T extends object> = {
+  [k in RequiredFields<T>]: T[k];
+} & {
+  [k in OptionalFields<T>]?: T[k];
+};
+
 // prettier-ignore
-type InferField<T extends SchemaField<any>> =  
-  T extends { type: "string" } ? (Nullability<T> | string)
-  : T["type"] extends "number" ? (Nullability<T> | number)
-  : T extends {type: "object", fields: any, isNullable: boolean} ? (Nullability<T> | Infer<T>)
+type InferField<T extends SchemaField<any>> =
+    T extends { type: "string" } ? (Nullability<T> | Optionality<T> | string)
+  : T extends { type: "number" } ? (Nullability<T> | Optionality<T> | number)
+  : T extends { type: "object", fields: any, isNullable: boolean, isOptional: boolean } ? (Nullability<T> | Optionality<T> | Infer<T>)
   : never;
 
 type Infer<T extends Schema<any>> =
   | Nullability<T>
-  | {
-      [key in keyof T["fields"]]: InferField<T["fields"][key]>;
-    };
+  | Optionality<T>
+  | Flatten<
+      AddOptionalFields<{
+        [key in keyof T["fields"]]: InferField<T["fields"][key]>;
+      }>
+    >;
 
 const getValidators = <T extends Record<string, SchemaField<any>>>(
   schema: Schema<T>,
 ) => {
-  const keysTheSame = <TT extends Record<string, SchemaField<any>>>(
-    schema: { type: "object"; fields: TT },
-    obj: NonNullable<unknown>,
-  ) => {
-    return (
-      new Set(Object.keys(obj)).symmetricDifference(
-        new Set(Object.keys(schema.fields)),
-      ).size === 0
-    );
-  };
   const validateField = <TT extends Record<string, SchemaField<any>>>(
     fieldSchema: SchemaField<TT>,
     value: unknown,
   ): value is InferField<typeof fieldSchema> => {
     return value === null
       ? fieldSchema.isNullable
-      : value !== undefined &&
-          (() => {
+      : value === undefined
+        ? fieldSchema.isOptional
+        : (() => {
             switch (fieldSchema.type) {
               case "string": {
                 return typeof value === "string";
@@ -102,12 +134,12 @@ const getValidators = <T extends Record<string, SchemaField<any>>>(
                 // console.log(fieldSchema, value);
                 return (
                   typeof value === "object" &&
-                  keysTheSame(fieldSchema, value) &&
                   Object.entries(fieldSchema.fields).every(
                     ([key, subFieldSchema]) =>
-                      key in value &&
-                      // @ts-expect-error dumb
-                      validateField(subFieldSchema, value[key]),
+                      !(key in value)
+                        ? subFieldSchema.isOptional
+                        : // @ts-expect-error dumb
+                          validateField(subFieldSchema, value[key]),
                   )
                 );
               }
@@ -135,8 +167,8 @@ const getValidatorsCompiled = <T extends Record<string, SchemaField<any>>>(
     fieldSchema: SchemaField<TT>,
     valueName: string = "value",
   ): string => {
-    let retVal = `${valueName} === null ? ${fieldSchema.isNullable} : (  
-            ${valueName} !== undefined &&
+    let retVal = `${valueName} === null ? ${fieldSchema.isNullable} : (
+            ${valueName} === undefined ? ${fieldSchema.isOptional} : ( 
 `;
     switch (fieldSchema?.type) {
       case "string": {
@@ -148,14 +180,13 @@ const getValidatorsCompiled = <T extends Record<string, SchemaField<any>>>(
         break;
       }
       case "object": {
-        const keys = Object.keys(fieldSchema.fields);
         retVal +=
           `
-        typeof ${valueName} === "object" && Object.keys(${valueName}).length === ${keys.length} && \n` +
+        typeof ${valueName} === "object" && \n` +
           Object.entries(fieldSchema.fields)
             .map(
               ([key, subSchema]) =>
-                `("${key}" in ${valueName}) && (${getValidationStatementString(subSchema, `(${valueName})["${key}"]`)})`,
+                `(!("${key}" in ${valueName}) ? ${subSchema.isOptional} : (${getValidationStatementString(subSchema, `(${valueName})["${key}"]`)}))`,
             )
             .join(" &&\n");
         break;
@@ -163,10 +194,9 @@ const getValidatorsCompiled = <T extends Record<string, SchemaField<any>>>(
       default:
         throw new Error("unreachable");
     }
-    return retVal + ")";
+    return retVal + "))";
   };
   const genCode = "return " + getValidationStatementString(schema) + ";";
-  console.log(genCode);
 
   // @ts-expect-error new Function does not have the correct type
   const validate: (value: unknown) => value is Infer<typeof schema> =
@@ -184,4 +214,3 @@ export const z = Object.freeze({
   getValidators,
   getValidatorsCompiled,
 });
-

@@ -1,4 +1,4 @@
-import { test, expect } from "bun:test";
+import { test, expect, describe } from "bun:test";
 
 function add1(num: number) {
   return num + 1;
@@ -17,7 +17,6 @@ test("add2", () => {
   expect(add2(2)).toBe(4);
 });
 
-// ------------------------------------------------
-
-console.log(add1.toString());
-console.log(add2.toString());
+// fun fact funcitons have a toString method that gives you the code of the function
+console.log("add1():  \n\n", add1.toString());
+console.log("add2():  \n\n", add2.toString());

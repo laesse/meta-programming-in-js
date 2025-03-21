@@ -6,16 +6,34 @@ describe("tests", () => {
     expect(z.object({ foo: z.string(), bar: z.number() })).toEqual({
       type: "object",
       fields: {
-        foo: { type: "string", isNullable: false, nullable: expect.anything() },
-        bar: { type: "number", isNullable: false, nullable: expect.anything() },
+        foo: {
+          type: "string",
+          isNullable: false,
+          nullable: expect.anything(),
+          isOptional: false,
+          optional: expect.anything(),
+        },
+        bar: {
+          type: "number",
+          isNullable: false,
+          nullable: expect.anything(),
+          isOptional: false,
+          optional: expect.anything(),
+        },
       },
       isNullable: false,
       nullable: expect.anything(),
+      isOptional: false,
+      optional: expect.anything(),
     });
   });
 
   test("demo", () => {
-    const schema = z.object({ foo: z.string(), bar: z.number() });
+    const schema = z.object({
+      foo: z.string(),
+      bar: z.number(),
+      opt: z.string().optional(),
+    });
     const { validate } = z.getValidators(schema);
     const res: unknown = JSON.parse('{"foo": "abc", "bar": 9}');
     expect(validate(res)).toBe(true);
@@ -26,13 +44,18 @@ describe("tests", () => {
   });
 
   test("compiled demo", () => {
-    const schema = z.object({ foo: z.string(), bar: z.number() });
+    const schema = z.object({
+      foo: z.string(),
+      bar: z.number(),
+      opt: z.string().optional(),
+    });
     const { validate } = z.getValidatorsCompiled(schema);
     const res: unknown = JSON.parse('{"foo": "abc", "bar": 9}');
     expect(validate(res)).toBe(true);
     if (validate(res)) {
       expect(res.foo).toBe("abc");
       expect(res.bar).toBe(9);
+      expect(res.opt).toBeUndefined();
     }
   });
 
@@ -44,8 +67,10 @@ describe("tests", () => {
       numberNullable: z.number().nullable(),
       obj: z.object({ foo: z.string() }),
       objNullable: z.object({ foo: z.string() }).nullable(),
+      objOpt: z.object({ foo: z.string() }).optional(),
     });
     const { validate } = z.getValidatorsCompiled(schema);
+    console.log(validate.toString());
 
     // prettier-ignore
     expect(validate({string: '', stringNullable: "", number: 0, numberNullable: 0, obj: {foo: ''}, objNullable: {foo: ''}})).toEqual(true);
@@ -56,7 +81,7 @@ describe("tests", () => {
     // prettier-ignore
     expect(validate({string: '', stringNullable: "", number: 0, numberNullable: 0, obj: {foo: ''}, objNullable: null})).toEqual(true);
     // prettier-ignore
-    expect(validate({string: '', stringNullable: "", number: 0, numberNullable: 0, obj: {foo: ''}, objNullable: {foo: ''}})).toEqual(true);
+    expect(validate({string: '', stringNullable: "", number: 0, numberNullable: 0, obj: {foo: ''}, objNullable: {foo: ''}, objOpt: {foo: ''}})).toEqual(true);
     // prettier-ignore
     expect(validate({string: '', stringNullable: null, number: 0, numberNullable: null, obj: null, objNullable: null})).toEqual(false);
     // prettier-ignore
