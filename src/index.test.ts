@@ -2,7 +2,7 @@ import { describe, test, expect } from "bun:test";
 import { z } from "./index.ts";
 
 describe("tests", () => {
-  test("basic", () => {
+  test("under the hood", () => {
     expect(z.object({ foo: z.string(), bar: z.number() })).toEqual({
       type: "object",
       fields: {

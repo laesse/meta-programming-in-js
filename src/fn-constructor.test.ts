@@ -20,3 +20,19 @@ test("add2", () => {
 // fun fact funcitons have a toString method that gives you the code of the function
 console.log("add1():  \n\n", add1.toString());
 console.log("add2():  \n\n", add2.toString());
+
+// man kann auch "dynamischen" code übergeben
+const superAdder = (toAdd: number) =>
+  new Function(
+    "num",
+    `
+  return num + ${toAdd};
+`,
+  );
+
+// ist gelich wie superAdder
+const superAdderNormal = (toAdd: number) => (num: number) => num + toAdd;
+
+test("superAdder", () => {
+  expect(superAdder(42)(1)).toBe(superAdderNormal(42)(1));
+});

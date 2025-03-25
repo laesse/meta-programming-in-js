@@ -8,8 +8,7 @@ function areObjectsAlike(
   const otherKeys = Object.keys(otherObj);
   return (
     keys.length === otherKeys.length &&
-    keys.every((key) => otherKeys.includes(key)) &&
-    otherKeys.every((key) => keys.includes(key))
+    keys.every((key) => otherKeys.includes(key))
   );
 }
 
@@ -21,7 +20,6 @@ function areObjectsAlike2(obj: Record<string, unknown>) {
       const otherKeys = Object.keys(otherObj);
       return otherKeys.length === ${keys.length}
           && (${keys.map((k) => `otherKeys.includes("${k}")`).join(" && ")})
-          && otherKeys.every(otherKey => ${keys.map((k) => `otherKey === "${k}"`).join(" || ")});
   `) as (otherObj: Record<string, unknown>) => boolean;
   return fn;
 }
